@@ -45,7 +45,7 @@ st.markdown("### 📥 Excel'den Veri Yükle")
 uploaded_file = st.file_uploader("Excel Dosyası Yükleyin (.xlsx)", type=["xlsx"])
 if uploaded_file:
     try:
-       df_yeni = pd.read_excel(uploaded_file, engine="openpyxl")
+        df_yeni = pd.read_excel(uploaded_file, engine="openpyxl")
         birlestir = st.checkbox("STOK Kodu ile eşleşen satırları birleştirerek güncelle", value=True)
         if birlestir:
             for _, yeni_satir in df_yeni.iterrows():
