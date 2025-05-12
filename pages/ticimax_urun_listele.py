@@ -23,14 +23,6 @@ payload = {
 }
 
 # Butona basılınca API'den veri çekilir
-if st.button("Ürünleri Çek"):
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        st.write(f"Durum Kodu: {response.status_code}")
-        st.write("Cevap (JSON):")
-        st.json(response.json())
-    except Exception as e:
-        st.error(f"Bir hata oluştu: {e}")
 if st.button("🔄 Ürünleri Getir"):
     try:
         response = requests.post(url, json=payload, headers=headers)
