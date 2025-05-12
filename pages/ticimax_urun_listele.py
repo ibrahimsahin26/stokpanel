@@ -1,9 +1,10 @@
-
 import streamlit as st
 import requests
 
 st.set_page_config(page_title="Ticimax Ürün Çekme", layout="wide")
 st.title("🛒 Ticimax Ürünlerini Çek")
+
+st.write("Sayfa yüklendi")  # Test için kontrol satırı
 
 # Yetki kodunu Streamlit Cloud üzerinden secrets.toml'dan alıyoruz
 AUTH_CODE = st.secrets["TICIMAX_AUTH_CODE"]
