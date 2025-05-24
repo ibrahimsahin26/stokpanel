@@ -1,48 +1,52 @@
+import streamlit as st
+from zeep import Client
 from zeep.helpers import serialize_object
 
-...
+st.set_page_config(page_title="Ticimax Ürün Çek", layout="wide")
 
-for idx, urun in enumerate(response, 1):
-    st.markdown(f"### {idx}. Ürün")
+st.title("📦 Ticimax Ürünlerini Panele Yükle")
 
-    if urun is None:
-        st.error("Bu ürün verisi 'NoneType' döndü. Atlanıyor.")
-        continue
+# Yetki kodu ve servis adresi
+UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
+SERVICE_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 
-    u = serialize_object(urun)
+try:
+    client = Client(wsdl=SERVICE_URL)
+    st.success("Servis bağlantısı başarılı.")
+except Exception as e:
+    st.error(f"Servis bağlantısı başarısız: {e}")
+    st.stop()
 
-    if not isinstance(u, dict):
-        st.error("Ürün verisi beklenmedik biçimde geldi. Atlanıyor.")
-        continue
+# Ürünleri çek
+if st.button("🔄 Ticimax'tan Ürünleri Al"):
+    try:
+        response = client.service.SelectUrun(
+            UyeKodu=UYE_KODU,
+            f={},
+            s={
+                "BaslangicIndex": 0,
+                "KayitSayisi": 5,
+                "KayitSayisinaGoreGetir": True,
+                "SiralamaDegeri": "",
+                "SiralamaYonu": ""
+            }
+        )
+        if not response:
+            st.warning("Hiç ürün bulunamadı.")
+        else:
+            st.success(f"{len(response)} ürün başarıyla çekildi.")
+            for idx, urun in enumerate(response, 1):
+                st.markdown(f"### {idx}. Ürün")
+                if urun is None:
+                    st.warning("Bu ürün None döndü, atlanıyor.")
+                    continue
 
-    urun_adi = u.get("UrunAdi", "Belirsiz")
-    marka = u.get("Marka", "Belirsiz")
-    varyasyon = u.get("Varyasyonlar", {}).get("Varyasyon")
-    
-    if isinstance(varyasyon, list) and varyasyon:
-        stok_kodu = varyasyon[0].get("StokKodu", "Yok")
-        satis_fiyati = varyasyon[0].get("SatisFiyati", "Yok")
-    elif isinstance(varyasyon, dict):
-        stok_kodu = varyasyon.get("StokKodu", "Yok")
-        satis_fiyati = varyasyon.get("SatisFiyati", "Yok")
-    else:
-        stok_kodu = "Yok"
-        satis_fiyati = "Yok"
+                u = serialize_object(urun)
+                if not isinstance(u, dict):
+                    st.warning("Veri formatı beklenen şekilde değil.")
+                    continue
 
-    stok_adedi = u.get("ToplamStokAdedi", "Yok")
-    resimler = u.get("Resimler", {}).get("string", [])
+                st.json(u)
 
-    st.write(f"📦 **Ürün Adı:** {urun_adi}")
-    st.write(f"🏷️ **Marka:** {marka}")
-    st.write(f"🔖 **Stok Kodu:** {stok_kodu}")
-    st.write(f"💰 **Satış Fiyatı:** {satis_fiyati}")
-    st.write(f"📦 **Stok Adedi:** {stok_adedi}")
-
-    if isinstance(resimler, list) and resimler:
-        st.image(resimler[0], width=200)
-    elif isinstance(resimler, str) and resimler:
-        st.image(resimler, width=200)
-    else:
-        st.write("🖼️ Resim yok")
-
-    st.markdown("---")
+    except Exception as e:
+        st.error(f"Hata oluştu: {e}")
