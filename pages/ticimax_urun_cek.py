@@ -23,7 +23,13 @@ if st.button("🔄 Ticimax'tan Ürünleri Al"):
         response = client.service.SelectUrun(
             UyeKodu=UYE_KODU,
             f={},
-            s={"Baslangic": 0, "Adet": 5}
+           s={
+    "BaslangicIndex": 0,
+    "KayitSayisi": 5,
+    "KayitSayisinaGoreGetir": True,
+    "SiralamaDegeri": "UrunAdi",
+    "SiralamaYonu": "ASC"
+}
         )
         if not response:
             st.warning("Hiç ürün bulunamadı.")
