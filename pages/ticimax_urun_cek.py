@@ -1,17 +1,21 @@
 import streamlit as st
 import pandas as pd
-from utils import get_ticimax_client
-from config import TICIMAX_UYE_KODU
+from zeep import Client
 
 st.title("📦 Ticimax Ürünlerini Panele Yükle")
 
-client = get_ticimax_client()
+# SOAP Client başlat
+WSDL_URL = "https://api.ticimax.com/service.asmx?WSDL"
+TICIMAX_UYE_KODU = st.secrets["TICIMAX_AUTH_CODE"]
+
+client = Client(wsdl=WSDL_URL)
 st.success("Servis bağlantısı başarılı.")
 
 if st.button("🛒 Ticimax'tan Ürünleri Al"):
     try:
         st.info("Ürünler çekiliyor...")
 
+        # Sayfalama ve filtre objeleri
         Sayfalama = client.get_type("ns2:UrunSayfalama")(
             BaslangicIndex=0,
             KayitSayisi=50,
@@ -19,7 +23,6 @@ if st.button("🛒 Ticimax'tan Ürünleri Al"):
             SiralamaDegeri="ID",
             SiralamaYonu="DESC"
         )
-
         UrunFiltre = client.get_type("ns2:UrunFiltre")()
 
         response = client.service.SelectUrun(
@@ -39,17 +42,13 @@ if st.button("🛒 Ticimax'tan Ürünleri Al"):
                     "Barkod": varyasyon.Barkod if varyasyon else "",
                     "Ürün Adı": urun.UrunAdi,
                     "Ana Kategori": urun.AnaKategori,
-                    "Alt Kategori": urun.Kategoriler["int"][-1] if urun.Kategoriler and "int" in urun.Kategoriler else "",
+                    "Alt Kategori": urun.Kategoriler.int[-1] if urun.Kategoriler and urun.Kategoriler.int else "",
                     "Marka": urun.Marka,
                     "Alış Fiyatı": varyasyon.AlisFiyati if varyasyon else 0,
-                    "Mikro Stok": urun.ToplamStokAdedi,
-                    "Hepcazip Satış": "",  # dış kaynaklı veri
-                    "Ofis26 Satış": varyasyon.SatisFiyati if varyasyon else 0,
-                    "Kar Marjı": ""  # hesaplanacaksa ayrıca yapılır
+                    "Mikro Stok": urun.ToplamStokAdedi
                 })
 
         df = pd.DataFrame(urunler)
-        st.success(f"{len(df)} ürün başarıyla çekildi.")
         st.dataframe(df)
 
     except Exception as e:
