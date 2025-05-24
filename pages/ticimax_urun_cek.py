@@ -1,4 +1,3 @@
-
 import streamlit as st
 from zeep import Client
 
@@ -22,14 +21,14 @@ if st.button("🔄 Ticimax'tan Ürünleri Al"):
     try:
         response = client.service.SelectUrun(
             UyeKodu=UYE_KODU,
-            f={},
-           s={
-    "BaslangicIndex": 0,
-    "KayitSayisi": 5,
-    "KayitSayisinaGoreGetir": True,
-    "SiralamaDegeri": "UrunAdi",
-    "SiralamaYonu": "ASC"
-}
+            f={},  # Filtre boş
+            s={
+                "BaslangicIndex": 0,
+                "KayitSayisi": 5,
+                "KayitSayisinaGoreGetir": True,
+                "SiralamaDegeri": "UrunAdi",
+                "SiralamaYonu": "ASC"
+            }
         )
         if not response:
             st.warning("Hiç ürün bulunamadı.")
