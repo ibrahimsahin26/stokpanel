@@ -16,7 +16,7 @@ headers = {
 }
 
 # Örnek API endpoint ve veri
-url = "https://api.ticimax.com/api/Urun/Listele"  # Ticimax dokümantasyonuna göre güncellenmeli
+url = "https://ofis26.ticimax.com/api/Urun/Listele"  # Ticimax dokümantasyonuna göre güncellenmeli
 payload = {
     "Dil": "tr",
     "Baslangic": 0,
