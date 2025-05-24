@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-from utils import get_ticimax_client  # senin util fonksiyonun
-from config import TICIMAX_UYE_KODU  # config'den çekilen sabitler
+from utils import get_ticimax_client
+from config import TICIMAX_UYE_KODU
 
 st.title("📦 Ticimax Ürünlerini Panele Yükle")
 
-# SOAP servisine bağlan
 client = get_ticimax_client()
 st.success("Servis bağlantısı başarılı.")
 
@@ -13,7 +12,6 @@ if st.button("🛒 Ticimax'tan Ürünleri Al"):
     try:
         st.info("Ürünler çekiliyor...")
 
-        # Sayfalama
         Sayfalama = client.get_type("ns2:UrunSayfalama")(
             BaslangicIndex=0,
             KayitSayisi=50,
@@ -22,7 +20,6 @@ if st.button("🛒 Ticimax'tan Ürünleri Al"):
             SiralamaYonu="DESC"
         )
 
-        # Boş filtre
         UrunFiltre = client.get_type("ns2:UrunFiltre")()
 
         response = client.service.SelectUrun(
@@ -41,4 +38,19 @@ if st.button("🛒 Ticimax'tan Ürünleri Al"):
                     "Stok Kodu": varyasyon.StokKodu if varyasyon else "",
                     "Barkod": varyasyon.Barkod if varyasyon else "",
                     "Ürün Adı": urun.UrunAdi,
-                    "Ana Kategori":
+                    "Ana Kategori": urun.AnaKategori,
+                    "Alt Kategori": urun.Kategoriler["int"][-1] if urun.Kategoriler and "int" in urun.Kategoriler else "",
+                    "Marka": urun.Marka,
+                    "Alış Fiyatı": varyasyon.AlisFiyati if varyasyon else 0,
+                    "Mikro Stok": urun.ToplamStokAdedi,
+                    "Hepcazip Satış": "",  # dış kaynaklı veri
+                    "Ofis26 Satış": varyasyon.SatisFiyati if varyasyon else 0,
+                    "Kar Marjı": ""  # hesaplanacaksa ayrıca yapılır
+                })
+
+        df = pd.DataFrame(urunler)
+        st.success(f"{len(df)} ürün başarıyla çekildi.")
+        st.dataframe(df)
+
+    except Exception as e:
+        st.error(f"Hata oluştu: {e}")
