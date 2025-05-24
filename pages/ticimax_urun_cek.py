@@ -1,41 +1,31 @@
-import streamlit as st
-from zeep import Client
-from zeep.helpers import serialize_object  # 📌 eklendi
+from zeep.helpers import serialize_object
 
-st.set_page_config(page_title="Ticimax Ürün Çek", layout="wide")
+...
 
-st.title("📦 Ticimax Ürünlerini Panele Yükle")
+if not response:
+    st.warning("Hiç ürün bulunamadı.")
+else:
+    st.success(f"{len(response)} ürün başarıyla çekildi.")
+    for idx, urun in enumerate(response, 1):
+        st.markdown(f"### {idx}. Ürün")
+        u = serialize_object(urun)
 
-UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
-SERVICE_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
+        urun_adi = u.get("UrunAdi")
+        marka = u.get("Marka")
+        stok_kodu = u.get("Varyasyonlar", {}).get("Varyasyon", [{}])[0].get("StokKodu")
+        satis_fiyati = u.get("Varyasyonlar", {}).get("Varyasyon", [{}])[0].get("SatisFiyati")
+        stok_adedi = u.get("ToplamStokAdedi")
+        resimler = u.get("Resimler", {}).get("string", [])
 
-try:
-    client = Client(wsdl=SERVICE_URL)
-    st.success("Servis bağlantısı başarılı.")
-except Exception as e:
-    st.error(f"Servis bağlantısı başarısız: {e}")
-    st.stop()
+        st.write(f"📦 **Ürün Adı:** {urun_adi}")
+        st.write(f"🏷️ **Marka:** {marka}")
+        st.write(f"🔖 **Stok Kodu:** {stok_kodu}")
+        st.write(f"💰 **Satış Fiyatı:** {satis_fiyati}")
+        st.write(f"📦 **Stok Adedi:** {stok_adedi}")
 
-if st.button("🔄 Ticimax'tan Ürünleri Al"):
-    try:
-        response = client.service.SelectUrun(
-            UyeKodu=UYE_KODU,
-            f={},
-            s={
-                "BaslangicIndex": 0,
-                "KayitSayisi": 5,
-                "KayitSayisinaGoreGetir": True,
-                "SiralamaDegeri": "UrunAdi",
-                "SiralamaYonu": "ASC"
-            }
-        )
-        if not response:
-            st.warning("Hiç ürün bulunamadı.")
+        if resimler:
+            st.image(resimler[0], width=200)
         else:
-            st.success(f"{len(response)} ürün başarıyla çekildi.")
-            for idx, urun in enumerate(response, 1):
-                st.write(f"**{idx}. Ürün:**")
-                serialized = serialize_object(urun)  # 🔧 Zeep objesini JSON uyumlu hale getir
-                st.json(serialized)
-    except Exception as e:
-        st.error(f"Hata oluştu: {e}")
+            st.write("🖼️ Resim yok")
+        
+        st.markdown("---")
