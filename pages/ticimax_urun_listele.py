@@ -11,7 +11,7 @@ st.markdown("### Ticimax’tan Ürünleri Al")
 if st.button("Ticimax'tan Ürünleri Al"):
     try:
         # API endpoint ve bilgiler buraya girilmeli
-        API_URL = "https://api.ticimax.com/ws/UrunService.asmx"
+        API_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
         HEADERS = {
             "Content-Type": "application/soap+xml; charset=utf-8"
         }
