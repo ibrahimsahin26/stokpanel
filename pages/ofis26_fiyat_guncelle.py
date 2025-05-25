@@ -2,62 +2,55 @@ import streamlit as st
 import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
+import os
 
-# Dosya yolu
+# CSV yolu
 CSV_PATH = "veri_kaynaklari/ana_urun_listesi.csv"
 
-# API bilgileri
+# SOAP servis bilgileri
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
-UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"  # Gerçek kodunuz
+UYE_KODU = "HVEKN1K1USEAD0VAXTVKP8FWGN3AE"
 
-def ticimax_fiyat_cek():
-    try:
-        client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
-        UrunFiltre = client.get_type("ns0:UrunFiltre")
-        UrunListele = client.service.UrunListele
+def urun_fiyatlarini_cek():
+    client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
+    UrunFiltre = client.get_type("ns0:UrunFiltre")
+    UrunFiyat = client.get_type("ns0:UrunFiyat")
 
-        filtre = UrunFiltre(
-            UyeKodu=UYE_KODU,
-            Resim=False,
-            Marka=False,
-            Tedarikci=False,
-            Ozellik=False,
-            Varyant=False,
-            Kategori=False
-        )
+    df = pd.read_csv(CSV_PATH)
 
-        result = UrunListele(filtre)
-        urunler = result["UrunListe"] if result and "UrunListe" in result else []
-        return urunler
+    if "Stok Kodu" not in df.columns:
+        st.error("CSV'de 'Stok Kodu' sütunu bulunamadı.")
+        return
 
-    except Exception as e:
-        st.error(f"API hatası: {e}")
-        return []
+    ofis26_fiyatlar = []
+
+    for stok_kodu in df["Stok Kodu"].dropna().astype(str).unique():
+        try:
+            filtre = UrunFiltre(UyeKodu=UYE_KODU, StokKodu=stok_kodu)
+            sonuc = client.service.UrunListele(filtre)
+            if sonuc and hasattr(sonuc, 'Urunler') and sonuc.Urunler:
+                fiyat = sonuc.Urunler[0].SatisFiyati
+                ofis26_fiyatlar.append((stok_kodu, fiyat))
+            else:
+                ofis26_fiyatlar.append((stok_kodu, None))
+        except Exception as e:
+            ofis26_fiyatlar.append((stok_kodu, None))
+
+    fiyat_df = pd.DataFrame(ofis26_fiyatlar, columns=["Stok Kodu", "Ofis26 Satış Fiyatı"])
+    df = df.merge(fiyat_df, on="Stok Kodu", how="left")
+    df.to_csv(CSV_PATH, index=False)
+    st.success("Ofis26 satış fiyatları başarıyla güncellendi!")
 
 def main():
     st.set_page_config(layout="wide")
     st.title("🔄 Ofis26 Satış Fiyatlarını Güncelle")
 
-    try:
-        df = pd.read_csv(CSV_PATH)
-    except FileNotFoundError:
+    if not os.path.exists(CSV_PATH):
         st.error("Ana ürün listesi dosyası bulunamadı.")
         return
 
-    col1, col2 = st.columns([1, 5])
-    with col1:
-        if st.button("Ofis26 Satış Fiyatlarını API ile Güncelle"):
-            urunler_api = ticimax_fiyat_cek()
-            if urunler_api:
-                api_df = pd.DataFrame(urunler_api)
-                api_df = api_df.rename(columns={"StokKodu": "Stok Kodu", "SatisFiyati": "Ofis26 Satış Fiyatı (TL)"})
-                df = df.drop(columns=["Ofis26 Satış Fiyatı (TL)"], errors="ignore")
-                df = pd.merge(df, api_df[["Stok Kodu", "Ofis26 Satış Fiyatı (TL)"]], on="Stok Kodu", how="left")
-                df.to_csv(CSV_PATH, index=False)
-                st.success("Ofis26 fiyatları güncellendi ✅")
-
-    with col2:
-        st.dataframe(df)
+    if st.button("📥 Ofis26 Fiyatlarını Güncelle (Ticimax)"):
+        urun_fiyatlarini_cek()
 
 if __name__ == "__main__":
     main()
