@@ -1,8 +1,8 @@
+# pages/ofis26_fiyat_guncelle.py
 import streamlit as st
 import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
-import os
 
 # CSV yolu
 CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
@@ -12,42 +12,36 @@ WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 UYE_KODU = "HVEKN1K1USEAD0VAXTVKP8FWGN3AE"
 
 st.set_page_config(layout="wide")
-st.title("\U0001F504 Ofis26 Satış Fiyatlarını Güncelle")
+st.title("🔁 Ofis26 Satış Fiyatlarını Güncelle")
 
-def urun_detaylarini_cek():
-    client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
+if st.button("💾 Fiyatları Güncelle (Ticimax)"):
     try:
         df = pd.read_csv(CSV_YOLU)
-    except FileNotFoundError:
-        st.error("Ana ürün listesi dosyası bulunamadı.")
-        return
 
-    if "Stok Kodu" not in df.columns:
-        st.error("CSV'de 'Stok Kodu' sütunu bulunamadı.")
-        return
+        if "Stok Kodu" not in df.columns:
+            st.error("CSV'de 'Stok Kodu' sütunu bulunamadı.")
+            st.stop()
 
-    ofis26_fiyatlar = []
-    for index, row in df.iterrows():
-        stok_kodu = row["Stok Kodu"]
-        if pd.isna(stok_kodu):
-            ofis26_fiyatlar.append(None)
-            continue
+        client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
+        UrunFiltre = client.get_type("ns0:UrunFiltre")
+        UrunListele = client.service.UrunListele
 
-        try:
-            sonuc = client.service.UrunDetayGetir(UyeKodu=UYE_KODU, StokKodu=stok_kodu)
-            satis_fiyat = sonuc["SatisFiyati"] if sonuc else None
-        except Exception as e:
-            satis_fiyat = None
+        fiyatlar = []
 
-        ofis26_fiyatlar.append(satis_fiyat)
+        for kod in df["Stok Kodu"]:
+            try:
+                filtre = UrunFiltre(StokKodu=kod)
+                sonuc = UrunListele(UyeKodu=UYE_KODU, urunFiltre=filtre)
+                if sonuc and sonuc[0].SatisFiyati:
+                    fiyatlar.append(sonuc[0].SatisFiyati)
+                else:
+                    fiyatlar.append(None)
+            except Exception as e:
+                fiyatlar.append(None)
 
-    df["Ofis26 Satış Fiyatı"] = ofis26_fiyatlar
-    df.to_csv(CSV_YOLU, index=False)
-    st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
+        df["Ofis26 Satış Fiyatı"] = fiyatlar
+        df.to_csv(CSV_YOLU, index=False)
+        st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
 
-dosya_var = os.path.exists(CSV_YOLU)
-if not dosya_var:
-    st.error("Ana ürün listesi dosyası bulunamadı.")
-else:
-    if st.button("\U0001F4BE Fiyatları Güncelle (Ticimax)"):
-        urun_detaylarini_cek()
+    except Exception as e:
+        st.error(f"Hata oluştu: {e}")
