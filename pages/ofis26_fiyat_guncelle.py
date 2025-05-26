@@ -3,7 +3,7 @@ import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
 
-# API bağlantısı ve CSV yolu
+# API ve CSV ayarları
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
 CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
@@ -11,7 +11,6 @@ CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
 def ticimax_satis_fiyatlarini_guncelle():
     client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
 
-    # Filtre ve sıralama
     urun_filtresi = {
         "Aktif": -1, "Firsat": -1, "Indirimli": -1, "Vitrin": -1,
         "KategoriID": 0, "MarkaID": 0, "TedarikciID": -1,
@@ -25,11 +24,11 @@ def ticimax_satis_fiyatlarini_guncelle():
     }
 
     try:
-
         sonuc = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtresi, s=sayfalama)
-        st.write("Gelen SOAP Yanıtı:")
-        st.write(sonuc)
+        st.write("Gelen veri:", sonuc)
 
+        if not sonuc or not hasattr(sonuc, 'UrunListesi'):
+            return None, "Ürün listesi alınamadı."
 
         fiyat_dict = {}
         for urun in sonuc.UrunListesi.Urun:
@@ -44,7 +43,7 @@ def ticimax_satis_fiyatlarini_guncelle():
             df["Ofis26_SatisFiyati"] = None
 
         df["Ofis26_SatisFiyati"] = df["StokKodu"].apply(
-            lambda kod: fiyat_dict.get(str(kod), df[df["StokKodu"] == kod]["Ofis26_SatisFiyati"].values[0])
+            lambda kod: fiyat_dict.get(str(kod), df.loc[df["StokKodu"] == kod, "Ofis26_SatisFiyati"].values[0])
         )
 
         df.to_csv(CSV_YOLU, index=False)
