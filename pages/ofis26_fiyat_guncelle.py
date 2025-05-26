@@ -3,17 +3,15 @@ import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
 
-# Ticimax WSDL URL ve Yetki Kodu
+# Ticimax ayarları
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
-UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"  # teknik destekten gelen kod
-
-# CSV yolu
+UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
 CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
 
 def satis_fiyatlarini_cek():
     client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
 
-    # Filtre tanımları
+    # Filtre ayarları (tüm ürünler için boş filtre)
     urun_filtre = {
         "Aktif": -1,
         "Firsat": -1,
@@ -35,40 +33,24 @@ def satis_fiyatlarini_cek():
     }
 
     try:
-        response = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtre, s=urun_sayfalama)
-        urunler = response['UrunListesi']
-        return urunler
+        sonuc = client.service.SelectUrun(
+            UyeKodu=UYE_KODU,
+            f=urun_filtre,
+            s=urun_sayfalama
+        )
+        urun_listesi = sonuc["UrunListesi"] if sonuc and "UrunListesi" in sonuc else []
+        return urun_listesi
     except Exception as e:
-        st.error(f"Hata oluştu: {str(e)}")
+        st.error(f"Hata oluştu: {e}")
         return []
 
-def guncelle():
-    st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
-
-    if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
-        urunler = satis_fiyatlarini_cek()
-
-        if not urunler:
-            st.warning("Ürün listesi boş veya çekilemedi.")
-            return
-
-        try:
-            df = pd.read_csv(CSV_YOLU)
-            df['Ofis26 Satış Fiyatı'] = None
-
-            for urun in urunler:
-                try:
-                    barkod = urun.get('Barkod')
-                    fiyat = urun.get('Varyasyonlar')[0].get('SatisFiyati') if urun.get('Varyasyonlar') else None
-                    if barkod and fiyat is not None:
-                        df.loc[df['Barkod'] == str(barkod), 'Ofis26 Satış Fiyatı'] = float(fiyat)
-                except Exception as e:
-                    print(f"Barkod eşleşme hatası: {e}")
-
-            df.to_csv(CSV_YOLU, index=False)
-            st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
-        except Exception as e:
-            st.error(f"Güncelleme sırasında hata: {e}")
-
-if __name__ == "__main__" or True:
-    guncelle()
+# Streamlit Arayüzü
+st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
+if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
+    veri = satis_fiyatlarini_cek()
+    if veri:
+        st.success("Veriler başarıyla çekildi.")
+        df = pd.DataFrame(veri)
+        st.dataframe(df)
+    else:
+        st.warning("Ürün listesi boş veya çekilemedi.")
