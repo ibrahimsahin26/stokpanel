@@ -28,12 +28,12 @@ def ticimax_satis_fiyatlarini_guncelle():
         sonuc = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtresi, s=sayfalama)
         urun_listesi = getattr(sonuc, 'UrunListesi', None)
         st.write("=== Gelişmiş Test ===")
-urun_listesi = getattr(sonuc, 'UrunListesi', None)
-st.write("UrunListesi tipi:", type(urun_listesi))
+        urun_listesi = getattr(sonuc, 'UrunListesi', None)
+        st.write("UrunListesi tipi:", type(urun_listesi))
 
-if urun_listesi and hasattr(urun_listesi, "Urun") and len(urun_listesi.Urun) > 0:
-    st.write("İlk ürün tipi:", type(urun_listesi.Urun[0]))
-    st.write("İlk ürün:", urun_listesi.Urun[0])
+        if urun_listesi and hasattr(urun_listesi, "Urun") and len(urun_listesi.Urun) > 0:
+        st.write("İlk ürün tipi:", type(urun_listesi.Urun[0]))
+        st.write("İlk ürün:", urun_listesi.Urun[0])
 
         if not urun_listesi or not hasattr(urun_listesi, 'Urun'):
             return None, "Ürün listesi alınamadı."
