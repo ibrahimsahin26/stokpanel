@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from pages.veri_kaynaklari.mikro_api_panel import mikro_guncelle
+from veri_kaynaklari.mikro_api_panel import mikro_guncelle
 
 st.title("📦 HEpcazip Mikro API Entegrasyonu")
 
