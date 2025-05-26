@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
-import ast  # Güvenli metin sözlük dönüşümü
+import ast  # Güvenli string -> dict dönüşümü
 
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
@@ -31,7 +31,6 @@ def ticimax_satis_fiyatlarini_guncelle():
         if not urun_listesi or not hasattr(urun_listesi, 'Urun'):
             return None, "Ürün listesi alınamadı."
 
-        # Burada string olarak dönen her öğeyi gerçek dict'e dönüştür
         fiyat_dict = {}
         for urun_raw in urun_listesi.Urun:
             try:
@@ -41,7 +40,7 @@ def ticimax_satis_fiyatlarini_guncelle():
                 if stok_kodu and satis_fiyati:
                     fiyat_dict[str(stok_kodu)] = float(satis_fiyati)
             except Exception as e:
-                continue  # Kırık satırı atla
+                continue  # bozuk satır varsa atla
 
         df = pd.read_csv(CSV_YOLU)
 
@@ -59,7 +58,6 @@ def ticimax_satis_fiyatlarini_guncelle():
         return None, f"Hata oluştu: {str(e)}"
 
 st.title("Ofis26 Satış Fiyatlarını Güncelle")
-
 if st.button("Satış Fiyatlarını Güncelle"):
     df, mesaj = ticimax_satis_fiyatlarini_guncelle()
     st.success(mesaj) if df is not None else st.error(mesaj)
