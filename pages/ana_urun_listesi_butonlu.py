@@ -1,24 +1,18 @@
-
 import streamlit as st
 import pandas as pd
-from pages.veri_kaynaklari.mikro_api_panel import mikro_guncelle
-from pages.veri_kaynaklari.ana_urun_listesi import yukle_ana_urun_listesi
+from veri_kaynaklari.mikro_api_panel import mikro_guncelle
 
-st.title("📦 Ana Ürün Listesi Paneli")
-st.write("Ürün Adı ile Filtrele")
+st.title("📦 HEpcazip Mikro API Entegrasyonu")
 
-# Ana ürün listesini yükle
-df = yukle_ana_urun_listesi()
+st.markdown("Lütfen ana_urun_listesi.csv dosyasını yükleyin")
 
-# Kullanıcıya stok ve alış fiyatı güncellemesi için buton
-if st.button("📦 Mikro'dan Stok ve Alış Fiyatı Güncelle"):
-    mikro_guncelle()
-    df = yukle_ana_urun_listesi()
+uploaded_file = st.file_uploader("Drag and drop file here", type=["csv"], label_visibility="collapsed")
 
-# Filtreleme
-search = st.text_input("", placeholder="Ürün adı ara...")
-if search:
-    df = df[df['Ürün Adı'].str.contains(search, case=False, na=False)]
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    st.dataframe(df)
 
-# Tabloyu göster
-st.dataframe(df, use_container_width=True)
+    if st.button("🔁 Mikro Verilerini Güncelle"):
+        df = mikro_guncelle(df)
+        st.success("Güncelleme tamamlandı.")
+        st.dataframe(df)
