@@ -3,12 +3,11 @@ import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
 
-# Ayarlar
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
 CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
 
-def satis_fiyatlarini_cek():
+def satis_fiyatlarini_cek_ve_guncelle():
     client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
 
     urun_filtresi = {
@@ -33,35 +32,32 @@ def satis_fiyatlarini_cek():
 
     try:
         sonuc = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtresi, s=sayfalama)
-
         if not sonuc or not hasattr(sonuc, 'UrunListesi'):
-            return None, "Ürün verisi çekilemedi veya boş geldi."
+            return None, "Ürün verisi alınamadı."
 
-        urunler = sonuc.UrunListesi
+        satis_fiyatlari = {}
+        for urun in sonuc.UrunListesi.Urun:
+            stok_kodu = getattr(urun, 'StokKodu', None)
+            satis_fiyati = getattr(urun, 'SatisFiyati', None)
+            if stok_kodu and satis_fiyati:
+                satis_fiyatlari[stok_kodu] = satis_fiyati
 
-        # CSV'yi oku
         df = pd.read_csv(CSV_YOLU)
 
-        # Güncelleme
-        for urun in urunler:
-            stok_kodu = urun.StokKodu
-            fiyat = urun.SatisFiyati
-            df.loc[df["Stok Kodu"] == stok_kodu, "Ofis26 Satış Fiyatı"] = fiyat
+        if "Ofis26_SatisFiyati" not in df.columns:
+            df["Ofis26_SatisFiyati"] = None
 
-        # Kaydet
+        df["Ofis26_SatisFiyati"] = df["StokKodu"].apply(lambda x: satis_fiyatlari.get(str(x), df[df["StokKodu"] == x]["Ofis26_SatisFiyati"].values[0]))
+
         df.to_csv(CSV_YOLU, index=False)
-        return df, "Ofis26 satış fiyatları başarıyla güncellendi."
+        return df, "Satış fiyatları başarıyla güncellendi."
 
     except Exception as e:
-        return None, f"Ürün verisi çekilirken hata oluştu: {e}"
+        return None, f"Hata oluştu: {str(e)}"
 
-# Streamlit Arayüz
-st.header("🛒 Ticimax Ürün Fiyatlarını Güncelle")
+# Streamlit arayüzü
+st.title("Ofis26 Satış Fiyatlarını Güncelle")
 
-if st.button("📄 Satış Fiyatlarını Ticimax'ten Çek"):
-    df_gelen, mesaj = satis_fiyatlarini_cek()
-    if df_gelen is not None:
-        st.success(mesaj)
-        st.dataframe(df_gelen)
-    else:
-        st.error(mesaj)
+if st.button("Satış Fiyatlarını Güncelle"):
+    df, mesaj = satis_fiyatlarini_cek_ve_guncelle()
+    st.success(mesaj) if df is not None else st.error(mesaj)
