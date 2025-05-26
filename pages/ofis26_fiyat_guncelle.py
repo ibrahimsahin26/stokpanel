@@ -3,7 +3,7 @@ import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
 
-# Ticimax WSDL ve yetki kodu
+# WSDL ve yetki
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
 CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
@@ -12,7 +12,7 @@ def satis_fiyatlarini_cek():
     try:
         client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
 
-        # Filtre nesnesi
+        # Boş filtre - tüm ürünleri almak için
         urun_filtresi = {
             "Aktif": -1,
             "Firsat": -1,
@@ -22,14 +22,13 @@ def satis_fiyatlarini_cek():
             "MarkaID": 0,
             "TedarikciID": -1,
             "ToplamStokAdediBas": 0,
-            "ToplamStokAdediSon": 100,
-            "UrunKartiID": 0
+            "ToplamStokAdediSon": 1000,
+            "UrunKartiID": 0,
         }
 
-        # Sayfalama nesnesi
         sayfalama = {
             "BaslangicIndex": 0,
-            "KayitSayisi": 100,
+            "KayitSayisi": 200,
             "SiralamaDegeri": "ID",
             "SiralamaYonu": "DESC"
         }
@@ -40,41 +39,50 @@ def satis_fiyatlarini_cek():
             s=sayfalama
         )
 
-        if not sonuc or not hasattr(sonuc, "UrunListesi") or not sonuc.UrunListesi:
-            return None
+        if not hasattr(sonuc, 'UrunListesi') or sonuc.UrunListesi is None:
+            return pd.DataFrame()
 
-        # Urun listesi → pandas DataFrame'e çevir
-        urunler = pd.DataFrame([{
-            "StokKodu": urun.StokKodu,
-            "SatisFiyati": urun.Varyasyonlar[0].SatisFiyati if urun.Varyasyonlar else None
-        } for urun in sonuc.UrunListesi])
+        urunler = sonuc.UrunListesi
+        fiyat_df = pd.DataFrame([
+            {
+                "StokKodu": urun.StokKodu,
+                "SatisFiyati": urun.Varyasyonlar[0].SatisFiyati if urun.Varyasyonlar else None
+            }
+            for urun in urunler
+            if hasattr(urun, 'StokKodu') and hasattr(urun, 'Varyasyonlar')
+        ])
 
-        return urunler
+        return fiyat_df
 
     except Exception as e:
         st.error(f"Ürün verisi çekilirken hata oluştu: {e}")
-        return None
+        return pd.DataFrame()
 
-# Streamlit Arayüzü
-st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
+def main():
+    st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
 
-if st.button("📥 Satış Fiyatlarını Ticimax'ten Çek"):
-    fiyat_df = satis_fiyatlarini_cek()
+    if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
+        df_ana = pd.read_csv(CSV_YOLU)
+        df_fiyat = satis_fiyatlarini_cek()
 
-    if fiyat_df is None or fiyat_df.empty:
-        st.warning("Ürün listesi boş veya çekilemedi.")
-    else:
-        # Mevcut CSV'den ürün verisi yükle
-        ana_df = pd.read_csv(CSV_YOLU)
+        if df_fiyat.empty:
+            st.warning("Ürün listesi boş veya çekilemedi.")
+            return
 
-        # Stok kodu ile eşleştir
-        ana_df = ana_df.merge(fiyat_df, how="left", on="StokKodu", suffixes=('', '_Yeni'))
+        if "StokKodu" not in df_ana.columns or "Ofis26 Satış Fiyatı" not in df_ana.columns:
+            st.error("Ana CSV'de gerekli sütunlar eksik.")
+            return
 
-        # Yeni fiyatları güncelle
-        ana_df["Ofis26 Satış Fiyatı"] = ana_df["SatisFiyati"]
+        # Stok kodu üzerinden eşleştirme ve fiyat güncelleme
+        df_ana.set_index("StokKodu", inplace=True)
+        df_fiyat.set_index("StokKodu", inplace=True)
 
-        st.success("Satış fiyatları başarıyla güncellendi.")
-        st.dataframe(ana_df)
+        df_ana.update(df_fiyat.rename(columns={"SatisFiyati": "Ofis26 Satış Fiyatı"}))
+        df_ana.reset_index(inplace=True)
 
-        # İstersen CSV'ye yaz:
-        ana_df.to_csv(CSV_YOLU, index=False)
+        # Güncellenmiş veriyi kaydet
+        df_ana.to_csv(CSV_YOLU, index=False)
+        st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
+
+if __name__ == "__main__":
+    main()
