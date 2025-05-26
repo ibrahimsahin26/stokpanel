@@ -1,8 +1,3 @@
-...
-sonuc = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtresi, s=sayfalama)
-st.write("Gelen SOAP Yanıtı:")
-st.write(sonuc)
-...
 import streamlit as st
 import pandas as pd
 from zeep import Client
@@ -30,9 +25,11 @@ def ticimax_satis_fiyatlarini_guncelle():
     }
 
     try:
+
         sonuc = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtresi, s=sayfalama)
-        if not sonuc or not hasattr(sonuc, 'UrunListesi'):
-            return None, "Ürün listesi alınamadı."
+        st.write("Gelen SOAP Yanıtı:")
+        st.write(sonuc)
+
 
         fiyat_dict = {}
         for urun in sonuc.UrunListesi.Urun:
