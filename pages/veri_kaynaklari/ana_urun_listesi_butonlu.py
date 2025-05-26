@@ -1,8 +1,7 @@
 
 import streamlit as st
 import pandas as pd
-from pages.veri_kaynaklari.mikro_api_panel import mikro_guncelle
-from pages.veri_kaynaklari.ana_urun_listesi import yukle_ana_urun_listesi
+from veri_kaynaklari.mikro_api_panel import mikro_guncelle
 
 st.title("📦 Ana Ürün Listesi Paneli")
 st.write("Ürün Adı ile Filtrele")
