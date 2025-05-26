@@ -3,9 +3,10 @@ import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
 
-# Ticimax API bilgileri
+# API bilgileri
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
+CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
 
 st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
 
@@ -13,7 +14,7 @@ if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
     try:
         client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
 
-        # Filtre yapısı
+        # Filtre
         urun_filtresi = {
             "Aktif": -1,
             "Firsat": -1,
@@ -27,10 +28,10 @@ if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
             "UrunKartiID": 0
         }
 
-        # Sayfalama yapısı
-        sayfalama = {
+        # Sayfalama
+        urun_sayfalama = {
             "BaslangicIndex": 0,
-            "KayitSayisi": 50,
+            "KayitSayisi": 200,
             "SiralamaDegeri": "ID",
             "SiralamaYonu": "DESC"
         }
@@ -39,21 +40,28 @@ if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
         sonuc = client.service.SelectUrun(
             UyeKodu=UYE_KODU,
             f=urun_filtresi,
-            s=sayfalama
+            s=urun_sayfalama
         )
 
-        # 👇 Gelen cevabı yazdıralım: nasıl bir veri geldiğini görelim
-        st.write("Gelen Yanıt:")
-        st.write(sonuc)
-
-        # Eğer veri varsa tabloya çevir
-        if sonuc and hasattr(sonuc, "UrunListesi") and sonuc.UrunListesi:
-            urunler = sonuc.UrunListesi
-            df = pd.DataFrame(urunler)
-            st.success("Ürün verisi başarıyla alındı.")
-            st.dataframe(df)
-        else:
+        if not sonuc or not hasattr(sonuc, 'UrunListesi') or sonuc.UrunListesi is None:
             st.warning("Ürün listesi boş veya çekilemedi.")
+        else:
+            gelen_liste = sonuc.UrunListesi
+            df_api = pd.DataFrame([{
+                "StokKodu": urun.StokKodu,
+                "SatisFiyati": urun.Varyasyonlar[0].SatisFiyati if urun.Varyasyonlar else None
+            } for urun in gelen_liste])
+
+            df_csv = pd.read_csv(CSV_YOLU)
+
+            if "Stok Kodu" not in df_csv.columns:
+                st.error("Ana ürün listesinde 'Stok Kodu' sütunu bulunamadı.")
+            else:
+                df_csv = df_csv.merge(df_api, left_on="Stok Kodu", right_on="StokKodu", how="left")
+                df_csv["Ofis26 Satış Fiyatı"] = df_csv["SatisFiyati"]
+                df_csv.drop(columns=["StokKodu", "SatisFiyati"], inplace=True)
+                df_csv.to_csv(CSV_YOLU, index=False)
+                st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
 
     except Exception as e:
-        st.error(f"Hata oluştu: {e}")
+        st.error(f"Ürün verisi çekilirken hata oluştu: {str(e)}")
