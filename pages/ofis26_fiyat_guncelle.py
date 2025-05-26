@@ -3,19 +3,17 @@ import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
 
-# API bilgileri
+# WSDL ve yetki bilgisi
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
 CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
 
-st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
-
-if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
+def satis_fiyatlarini_cek():
     try:
         client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
 
-        # Filtre
-        urun_filtresi = {
+        # API parametreleri (filtreleme ve sayfalama)
+        filtre = {
             "Aktif": -1,
             "Firsat": -1,
             "Indirimli": -1,
@@ -28,40 +26,57 @@ if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
             "UrunKartiID": 0
         }
 
-        # Sayfalama
-        urun_sayfalama = {
+        sayfalama = {
             "BaslangicIndex": 0,
-            "KayitSayisi": 200,
+            "KayitSayisi": 100,
             "SiralamaDegeri": "ID",
             "SiralamaYonu": "DESC"
         }
 
-        # API çağrısı
-        sonuc = client.service.SelectUrun(
+        # Servis çağrısı
+        response = client.service.SelectUrun(
             UyeKodu=UYE_KODU,
-            f=urun_filtresi,
-            s=urun_sayfalama
+            f=filtre,
+            s=sayfalama
         )
 
-        if not sonuc or not hasattr(sonuc, 'UrunListesi') or sonuc.UrunListesi is None:
-            st.warning("Ürün listesi boş veya çekilemedi.")
-        else:
-            gelen_liste = sonuc.UrunListesi
-            df_api = pd.DataFrame([{
-                "StokKodu": urun.StokKodu,
-                "SatisFiyati": urun.Varyasyonlar[0].SatisFiyati if urun.Varyasyonlar else None
-            } for urun in gelen_liste])
+        # Yanıtın içinden veri çekme
+        urun_listesi = response['UrunListesi'] if hasattr(response, 'UrunListesi') else []
+        if not urun_listesi:
+            return pd.DataFrame()
 
-            df_csv = pd.read_csv(CSV_YOLU)
+        # Ürünlerden StokKodu ve ilk SatisFiyati alanlarını al
+        veri = []
+        for urun in urun_listesi:
+            stok_kodu = getattr(urun, 'StokKodu', None)
+            fiyatlar = getattr(urun, 'SatisFiyati', [])
+            if stok_kodu and fiyatlar and isinstance(fiyatlar, list) and len(fiyatlar) > 0:
+                veri.append({
+                    "StokKodu": stok_kodu,
+                    "Ofis26 Satış Fiyatı": fiyatlar[0]
+                })
 
-            if "Stok Kodu" not in df_csv.columns:
-                st.error("Ana ürün listesinde 'Stok Kodu' sütunu bulunamadı.")
-            else:
-                df_csv = df_csv.merge(df_api, left_on="Stok Kodu", right_on="StokKodu", how="left")
-                df_csv["Ofis26 Satış Fiyatı"] = df_csv["SatisFiyati"]
-                df_csv.drop(columns=["StokKodu", "SatisFiyati"], inplace=True)
-                df_csv.to_csv(CSV_YOLU, index=False)
-                st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
+        return pd.DataFrame(veri)
 
     except Exception as e:
-        st.error(f"Ürün verisi çekilirken hata oluştu: {str(e)}")
+        st.error(f"Ürün verisi çekilirken hata oluştu: {e}")
+        return pd.DataFrame()
+
+# Streamlit Arayüz
+st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
+
+if st.button("📥 Satış Fiyatlarını Ticimax'ten Çek"):
+    df_gelen = satis_fiyatlarini_cek()
+
+    if df_gelen.empty:
+        st.warning("Ürün listesi boş veya çekilemedi.")
+    else:
+        try:
+            df_ana = pd.read_csv(CSV_YOLU)
+            df_ana = df_ana.merge(df_gelen, on="StokKodu", how="left", suffixes=("", "_Yeni"))
+            df_ana["Ofis26 Satış Fiyatı"] = df_ana["Ofis26 Satış Fiyatı_Yeni"].combine_first(df_ana["Ofis26 Satış Fiyatı"])
+            df_ana.drop(columns=[col for col in df_ana.columns if col.endswith("_Yeni")], inplace=True)
+            df_ana.to_csv(CSV_YOLU, index=False)
+            st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
+        except Exception as e:
+            st.error(f"CSV dosyasına yazılırken hata oluştu: {e}")
