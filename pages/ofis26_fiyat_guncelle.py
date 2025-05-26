@@ -1,3 +1,8 @@
+...
+sonuc = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtresi, s=sayfalama)
+st.write("Gelen SOAP Yanıtı:")
+st.write(sonuc)
+...
 import streamlit as st
 import pandas as pd
 from zeep import Client
