@@ -32,6 +32,7 @@ def satis_fiyatlarini_cek_ve_guncelle():
 
     try:
         sonuc = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtresi, s=sayfalama)
+        st.write(sonuc)
         if not sonuc or not hasattr(sonuc, 'UrunListesi'):
             return None, "Ürün verisi alınamadı."
 
