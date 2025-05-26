@@ -1,5 +1,7 @@
-import streamlit as st
-import pandas as pd
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from veri_kaynaklari.mikro_api_panel import mikro_guncelle
 st.title("📦 HEpcazip Mikro API Entegrasyonu")
 
