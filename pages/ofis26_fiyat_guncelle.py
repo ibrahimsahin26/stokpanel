@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
+import ast  # Güvenli metin sözlük dönüşümü
 
-# API ve CSV ayarları
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
 CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
@@ -16,6 +16,7 @@ def ticimax_satis_fiyatlarini_guncelle():
         "KategoriID": 0, "MarkaID": 0, "TedarikciID": -1,
         "ToplamStokAdediBas": 0, "ToplamStokAdediSon": 100, "UrunKartiID": 0
     }
+
     sayfalama = {
         "BaslangicIndex": 0,
         "KayitSayisi": 100,
@@ -25,17 +26,22 @@ def ticimax_satis_fiyatlarini_guncelle():
 
     try:
         sonuc = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtresi, s=sayfalama)
-        st.write("Gelen veri:", sonuc)
+        urun_listesi = getattr(sonuc, 'UrunListesi', None)
 
-        if not sonuc or not hasattr(sonuc, 'UrunListesi'):
+        if not urun_listesi or not hasattr(urun_listesi, 'Urun'):
             return None, "Ürün listesi alınamadı."
 
+        # Burada string olarak dönen her öğeyi gerçek dict'e dönüştür
         fiyat_dict = {}
-        for urun in sonuc.UrunListesi.Urun:
-            stok_kodu = getattr(urun, "StokKodu", None)
-            satis_fiyati = getattr(urun, "SatisFiyati", None)
-            if stok_kodu and satis_fiyati is not None:
-                fiyat_dict[str(stok_kodu)] = float(satis_fiyati)
+        for urun_raw in urun_listesi.Urun:
+            try:
+                urun = ast.literal_eval(urun_raw)
+                stok_kodu = urun.get("StokKodu")
+                satis_fiyati = urun.get("SatisFiyati")
+                if stok_kodu and satis_fiyati:
+                    fiyat_dict[str(stok_kodu)] = float(satis_fiyati)
+            except Exception as e:
+                continue  # Kırık satırı atla
 
         df = pd.read_csv(CSV_YOLU)
 
@@ -52,8 +58,8 @@ def ticimax_satis_fiyatlarini_guncelle():
     except Exception as e:
         return None, f"Hata oluştu: {str(e)}"
 
-# Streamlit arayüzü
 st.title("Ofis26 Satış Fiyatlarını Güncelle")
+
 if st.button("Satış Fiyatlarını Güncelle"):
     df, mesaj = ticimax_satis_fiyatlarini_guncelle()
     st.success(mesaj) if df is not None else st.error(mesaj)
