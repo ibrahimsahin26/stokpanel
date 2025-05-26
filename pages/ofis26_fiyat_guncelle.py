@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
-import requests
 
 # Ticimax ayarları
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
@@ -13,7 +12,8 @@ def satis_fiyatlarini_cek():
     try:
         client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
 
-        urun_filtresi = {
+        # Filtre ayarları
+        urun_filtre = {
             "Aktif": -1,
             "Firsat": -1,
             "Indirimli": -1,
@@ -26,54 +26,44 @@ def satis_fiyatlarini_cek():
             "UrunKartiID": 0
         }
 
+        # Sayfalama ayarları
         urun_sayfalama = {
             "BaslangicIndex": 0,
-            "KayitSayisi": 200,  # Gerekirse artır
+            "KayitSayisi": 100,
             "SiralamaDegeri": "ID",
             "SiralamaYonu": "DESC"
         }
 
-        response = client.service.SelectUrun(UyeKodu=UYE_KODU, UrunFiltre=urun_filtresi, UrunSayfalama=urun_sayfalama)
+        sonuc = client.service.SelectUrun(
+            UyeKodu=UYE_KODU,
+            f=urun_filtre,
+            s=urun_sayfalama
+        )
 
-        if not hasattr(response, 'UrunListesi'):
-            return []
+        # Liste boşsa
+        if not sonuc or not hasattr(sonuc, "UrunListesi") or not sonuc.UrunListesi:
+            return pd.DataFrame(), "Ürün listesi boş veya çekilemedi."
 
-        urunler = response.UrunListesi
-        urun_listesi = []
+        urunler = sonuc.UrunListesi
+        df = pd.DataFrame([{
+            "StokKodu": u.StokKodu,
+            "SatisFiyati": u.SatisFiyati
+        } for u in urunler])
 
-        for urun in urunler:
-            urun_listesi.append({
-                "StokKodu": urun["StokKodu"],
-                "SatisFiyati": urun["SatisFiyati"]
-            })
-
-        return urun_listesi
+        return df, None
 
     except Exception as e:
-        st.error(f"Ürün verisi çekilirken hata oluştu: {e}")
-        return []
+        return pd.DataFrame(), f"Ürün verisi çekilirken hata oluştu: {e}"
 
-def main():
-    st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
+# Streamlit Arayüzü
+st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
 
-    if st.button("🧾 Satış Fiyatlarını Ticimax'ten Çek"):
-        urun_listesi = satis_fiyatlarini_cek()
-
-        if not urun_listesi:
-            st.warning("Ürün listesi boş veya çekilemedi.")
-            return
-
-        df_ana = pd.read_csv(CSV_YOLU)
-        df_fiyat = pd.DataFrame(urun_listesi)
-
-        # Ofis26 Satış Fiyatı sütununu güncelle
-        df_ana = df_ana.merge(df_fiyat, how="left", left_on="Stok Kodu", right_on="StokKodu")
-        df_ana["Ofis26 Satış Fiyatı"] = df_ana["SatisFiyati"]
-        df_ana.drop(columns=["StokKodu", "SatisFiyati"], inplace=True)
-
-        # CSV'ye geri yaz
-        df_ana.to_csv(CSV_YOLU, index=False)
-        st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
-
-if __name__ == "__main__":
-    main()
+if st.button("📄 Satış Fiyatlarını Ticimax'ten Çek"):
+    df, hata = satis_fiyatlarini_cek()
+    if hata:
+        st.error(hata)
+    elif df.empty:
+        st.warning("Ürün listesi boş veya çekilemedi.")
+    else:
+        st.success("Satış fiyatları başarıyla çekildi.")
+        st.dataframe(df)
