@@ -11,8 +11,8 @@ CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
 def satis_fiyatlarini_cek():
     client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
 
-    # Filtre ayarları (tüm ürünler için boş filtre)
-    urun_filtre = {
+    # Filtre parametresi
+    urun_filtresi = {
         "Aktif": -1,
         "Firsat": -1,
         "Indirimli": -1,
@@ -27,30 +27,42 @@ def satis_fiyatlarini_cek():
 
     urun_sayfalama = {
         "BaslangicIndex": 0,
-        "KayitSayisi": 200,
-        "SiralamaDegeri": "ID",
-        "SiralamaYonu": "DESC"
+        "KayitSayisi": 200
     }
 
+    # API çağrısı
+    sonuc = client.service.SelectUrun(
+        UyeKodu=UYE_KODU,
+        f=urun_filtresi,
+        s=urun_sayfalama
+    )
+
     try:
-        sonuc = client.service.SelectUrun(
-            UyeKodu=UYE_KODU,
-            f=urun_filtre,
-            s=urun_sayfalama
-        )
-        urun_listesi = sonuc["UrunListesi"] if sonuc and "UrunListesi" in sonuc else []
-        return urun_listesi
-    except Exception as e:
-        st.error(f"Hata oluştu: {e}")
-        return []
+        urun_listesi = sonuc["UrunListesi"]
+        df_ticimax = pd.DataFrame(urun_listesi)
+        return df_ticimax[["Barkod", "SatisFiyati"]]
+    except:
+        return pd.DataFrame(columns=["Barkod", "SatisFiyati"])
+
+def ana_tabloya_yaz(gelen_fiyatlar):
+    df_ana = pd.read_csv(CSV_YOLU)
+    df_ana["Barkod"] = df_ana["Barkod"].astype(str)
+
+    # Eşleştir ve güncelle
+    df_ana = df_ana.merge(gelen_fiyatlar, on="Barkod", how="left", suffixes=('', '_Yeni'))
+    df_ana["Ofis26 Satış Fiyatı"] = df_ana["SatisFiyati"].fillna(df_ana["Ofis26 Satış Fiyatı"])
+    df_ana.drop(columns=["SatisFiyati"], inplace=True)
+
+    df_ana.to_csv(CSV_YOLU, index=False)
+    return df_ana
 
 # Streamlit Arayüzü
 st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
+
 if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
-    veri = satis_fiyatlarini_cek()
-    if veri:
-        st.success("Veriler başarıyla çekildi.")
-        df = pd.DataFrame(veri)
-        st.dataframe(df)
-    else:
+    fiyatlar = satis_fiyatlarini_cek()
+    if fiyatlar.empty:
         st.warning("Ürün listesi boş veya çekilemedi.")
+    else:
+        ana_tabloya_yaz(fiyatlar)
+        st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
