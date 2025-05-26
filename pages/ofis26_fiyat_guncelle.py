@@ -1,88 +1,86 @@
 import streamlit as st
 import pandas as pd
-from zeep import Client
-from zeep.transports import Transport
+import requests
+from lxml import etree
 
-# WSDL ve yetki
-WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
+# Ticimax API ayarları
+WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc"
 UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
 CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
 
 def satis_fiyatlarini_cek():
-    try:
-        client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
+    headers = {
+        "Content-Type": "text/xml;charset=UTF-8",
+        "SOAPAction": "http://tempuri.org/IUrunServis/SelectUrun"
+    }
 
-        # Boş filtre - tüm ürünleri almak için
-        urun_filtresi = {
-            "Aktif": -1,
-            "Firsat": -1,
-            "Indirimli": -1,
-            "Vitrin": -1,
-            "KategoriID": 0,
-            "MarkaID": 0,
-            "TedarikciID": -1,
-            "ToplamStokAdediBas": 0,
-            "ToplamStokAdediSon": 1000,
-            "UrunKartiID": 0,
-        }
+    soap_body = f"""
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tem="http://tempuri.org/" xmlns:ns="http://schemas.datacontract.org/2004/07/">
+       <soapenv:Header/>
+       <soapenv:Body>
+          <tem:SelectUrun>
+             <tem:UyeKodu>{UYE_KODU}</tem:UyeKodu>
+             <tem:f>
+                <ns:Aktif>-1</ns:Aktif>
+                <ns:Firsat>-1</ns:Firsat>
+                <ns:Indirimli>-1</ns:Indirimli>
+                <ns:Vitrin>-1</ns:Vitrin>
+                <ns:KategoriID>0</ns:KategoriID>
+                <ns:MarkaID>0</ns:MarkaID>
+                <ns:TedarikciID>-1</ns:TedarikciID>
+                <ns:ToplamStokAdediBas>0</ns:ToplamStokAdediBas>
+                <ns:ToplamStokAdediSon>100</ns:ToplamStokAdediSon>
+                <ns:UrunKartiID>0</ns:UrunKartiID>
+             </tem:f>
+             <tem:s>
+                <ns:BaslangicIndex>0</ns:BaslangicIndex>
+                <ns:KayitSayisi>200</ns:KayitSayisi>
+             </tem:s>
+          </tem:SelectUrun>
+       </soapenv:Body>
+    </soapenv:Envelope>
+    """
 
-        sayfalama = {
-            "BaslangicIndex": 0,
-            "KayitSayisi": 200,
-            "SiralamaDegeri": "ID",
-            "SiralamaYonu": "DESC"
-        }
+    response = requests.post(WSDL_URL, data=soap_body.encode("utf-8"), headers=headers)
+    tree = etree.fromstring(response.content)
+    
+    ns = {
+        'a': 'http://schemas.datacontract.org/2004/07/',
+        's': 'http://schemas.xmlsoap.org/soap/envelope/'
+    }
 
-        sonuc = client.service.SelectUrun(
-            UyeKodu=UYE_KODU,
-            f=urun_filtresi,
-            s=sayfalama
-        )
+    urunler = tree.xpath('.//a:Urun', namespaces=ns)
+    data = []
+    for urun in urunler:
+        stok_kodu = urun.findtext('a:StokKodu', namespaces=ns)
+        satis_fiyati = urun.findtext('a:SatisFiyati', namespaces=ns)
+        data.append({
+            "Stok Kodu": stok_kodu,
+            "Ofis26 Satış Fiyatı": float(satis_fiyati or 0)
+        })
 
-        if not hasattr(sonuc, 'UrunListesi') or sonuc.UrunListesi is None:
-            return pd.DataFrame()
-
-        urunler = sonuc.UrunListesi
-        fiyat_df = pd.DataFrame([
-            {
-                "StokKodu": urun.StokKodu,
-                "SatisFiyati": urun.Varyasyonlar[0].SatisFiyati if urun.Varyasyonlar else None
-            }
-            for urun in urunler
-            if hasattr(urun, 'StokKodu') and hasattr(urun, 'Varyasyonlar')
-        ])
-
-        return fiyat_df
-
-    except Exception as e:
-        st.error(f"Ürün verisi çekilirken hata oluştu: {e}")
-        return pd.DataFrame()
+    return pd.DataFrame(data)
 
 def main():
     st.title("🛒 Ticimax Ürün Fiyatlarını Güncelle")
 
-    if st.button("📉 Satış Fiyatlarını Ticimax'ten Çek"):
-        df_ana = pd.read_csv(CSV_YOLU)
-        df_fiyat = satis_fiyatlarini_cek()
+    if st.button("📥 Satış Fiyatlarını Ticimax'ten Çek"):
+        try:
+            df_ticimax = satis_fiyatlarini_cek()
+            if df_ticimax.empty:
+                st.warning("Ürün listesi boş veya çekilemedi.")
+                return
 
-        if df_fiyat.empty:
-            st.warning("Ürün listesi boş veya çekilemedi.")
-            return
+            df_local = pd.read_csv(CSV_YOLU)
+            df_local = df_local.merge(df_ticimax, how="left", on="Stok Kodu", suffixes=('', '_yeni'))
 
-        if "StokKodu" not in df_ana.columns or "Ofis26 Satış Fiyatı" not in df_ana.columns:
-            st.error("Ana CSV'de gerekli sütunlar eksik.")
-            return
+            # Yeni gelen fiyatı güncelle
+            df_local['Ofis26 Satış Fiyatı'] = df_local['Ofis26 Satış Fiyatı_yeni'].fillna(df_local['Ofis26 Satış Fiyatı'])
+            df_local.drop(columns=['Ofis26 Satış Fiyatı_yeni'], inplace=True)
 
-        # Stok kodu üzerinden eşleştirme ve fiyat güncelleme
-        df_ana.set_index("StokKodu", inplace=True)
-        df_fiyat.set_index("StokKodu", inplace=True)
+            df_local.to_csv(CSV_YOLU, index=False)
+            st.success("Satış fiyatları başarıyla güncellendi.")
+        except Exception as e:
+            st.error(f"Bir hata oluştu: {e}")
 
-        df_ana.update(df_fiyat.rename(columns={"SatisFiyati": "Ofis26 Satış Fiyatı"}))
-        df_ana.reset_index(inplace=True)
-
-        # Güncellenmiş veriyi kaydet
-        df_ana.to_csv(CSV_YOLU, index=False)
-        st.success("Ofis26 satış fiyatları başarıyla güncellendi.")
-
-if __name__ == "__main__":
-    main()
+main()
