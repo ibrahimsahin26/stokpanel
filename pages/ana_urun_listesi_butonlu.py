@@ -1,19 +1,19 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from veri_kaynaklari.mikro_api_panel import mikro_guncelle
-st.title("📦 HEpcazip Mikro API Entegrasyonu")
+import streamlit as st
+import pandas as pd
+from veri_kaynaklari.ofis26_fiyat_guncelle import ticimax_satis_fiyatlarini_guncelle
 
-st.markdown("Lütfen ana_urun_listesi.csv dosyasını yükleyin")
+st.title("🛒 HEpcazip Ticimax Satış Fiyatı Entegrasyonu")
 
-uploaded_file = st.file_uploader("Drag and drop file here", type=["csv"], label_visibility="collapsed")
+st.markdown("Lütfen `ana_urun_listesi.csv` dosyasını yükleyin.")
+
+uploaded_file = st.file_uploader("Dosya seçin", type="csv", label_visibility="collapsed")
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
     st.dataframe(df)
 
-    if st.button("🔁 Mikro Verilerini Güncelle"):
-        df = mikro_guncelle(df)
-        st.success("Güncelleme tamamlandı.")
+    if st.button("📦 Ticimax Satış Fiyatlarını Güncelle"):
+        df = ticimax_satis_fiyatlarini_guncelle(df)
+        st.success("Satış fiyatları başarıyla güncellendi.")
         st.dataframe(df)
