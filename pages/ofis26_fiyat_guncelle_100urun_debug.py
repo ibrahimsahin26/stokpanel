@@ -31,7 +31,7 @@ def ticimax_satis_fiyatlarini_guncelle():
         }
 
         sayfalama = {
-            "BasLangicIndex": 0,
+            "BaslangicIndex": 0,
             "KayitSayisi": 100,
             "SiralamaDegeri": "ID",
             "SiralamaYonu": "DESC"
