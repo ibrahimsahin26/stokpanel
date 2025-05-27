@@ -2,23 +2,20 @@ import streamlit as st
 import pandas as pd
 from zeep import Client
 from zeep.transports import Transport
-import os
 
-st.title("📦 Stok Kodları:")
+st.title("🔧 Kod başladı")
 
-# Ayarlar
 WSDL_URL = "https://www.ofis26.com/Servis/UrunServis.svc?wsdl"
 UYE_KODU = "HVEKN1KK1USEAD0VAXTVKP8FWGN3AE"
 CSV_YOLU = "pages/veri_kaynaklari/ana_urun_listesi.csv"
 
-# Veriyi oku ve ilk 10 stok kodunu seç
 df = pd.read_csv(CSV_YOLU)
 stok_kodlari = df["Stok Kodu"].dropna().astype(str).unique()[:10]
 
+st.subheader("📦 Stok Kodları:")
 st.dataframe(pd.DataFrame(stok_kodlari, columns=["value"]))
 
 if st.button("🛠️ Ofis26 Fiyatlarını Güncelle"):
-    st.subheader("📦 Gelen veri:")
     try:
         client = Client(wsdl=WSDL_URL, transport=Transport(timeout=60))
 
@@ -41,6 +38,7 @@ if st.button("🛠️ Ofis26 Fiyatlarını Güncelle"):
         sonuc = client.service.SelectUrun(UyeKodu=UYE_KODU, f=urun_filtresi, s=sayfalama)
         urun_listesi = getattr(sonuc, "UrunListesi", None)
 
+        st.subheader("📦 Gelen veri:")
         if urun_listesi is None:
             st.warning("⚠️ API çağrısı başarılı ancak veri dönmedi (UrunListesi = None).")
         else:
@@ -48,4 +46,4 @@ if st.button("🛠️ Ofis26 Fiyatlarını Güncelle"):
             st.dataframe(gelen_df.head(20))
             st.success("✅ Güncelleme tamamlandı ve veri görüntülendi.")
     except Exception as e:
-        st.error(f"Hata oluştu: {e}")
+        st.error(f"❌ Hata oluştu: {e}")
